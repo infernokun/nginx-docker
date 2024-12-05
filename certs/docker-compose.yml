@@ -1,0 +1,67 @@
+services:
+  ctfd:
+    image: ctfd/ctfd:latest
+    user: root
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      - UPLOAD_FOLDER=/var/uploads
+      - DATABASE_URL=mysql+pymysql://ctfd:ctfd@mariadb/ctfd
+      - REDIS_URL=redis://redis:6379
+      - WORKERS=1
+      - LOG_FOLDER=/var/log/CTFd
+      - ACCESS_LOG=-
+      - ERROR_LOG=-
+      - REVERSE_PROXY=true
+    volumes:
+      - /data/ctfd/CTFd/logs:/var/log/CTFd
+      - /data/ctfd/CTFd/uploads:/var/uploads
+    depends_on:
+      - mariadb
+    networks:
+      default:
+      internal:
+
+  nginx:
+    image: nginx:stable
+    restart: always
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro  # Mount your nginx.conf
+      - ./certs/server.crt:/etc/nginx/certs/server.crt:ro # Mount SSL certificate
+      - ./certs/server.key:/etc/nginx/certs/server.key:ro # Mount SSL key
+    depends_on:
+      - ctfd
+    networks:
+      default:
+      internal:
+
+  mariadb:
+    image: mariadb:10.11
+    restart: always
+    environment:
+      - MARIADB_ROOT_PASSWORD=ctfd
+      - MARIADB_USER=ctfd
+      - MARIADB_PASSWORD=ctfd
+      - MARIADB_DATABASE=ctfd
+      - MARIADB_AUTO_UPGRADE=1
+    volumes:
+      - /data/ctfd/mysql:/var/lib/mysql
+    networks:
+      internal:
+    command: [mysqld, --character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci, --wait_timeout=28800, --log-warnings=0]
+
+  redis:
+    image: redis:4
+    restart: always
+    volumes:
+      - /data/ctfd/redis:/data
+    networks:
+      internal:
+
+networks:
+  default:
+  internal:
+    internal: true
